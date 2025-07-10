@@ -1,4 +1,4 @@
-package com.myname.mymodid;
+package com.tkp.krolcad;
 
 import java.io.File;
 
