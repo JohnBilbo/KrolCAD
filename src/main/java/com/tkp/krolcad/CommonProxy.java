@@ -8,6 +8,7 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.registry.GameRegistry;
 import net.minecraft.item.Item;
+import net.minecraftforge.common.MinecraftForge;
 
 public class CommonProxy {
     public static Item itemMarkTool;
@@ -26,6 +27,7 @@ public class CommonProxy {
     // load "Do your mod setup. Build whatever data structures you care about. Register recipes." (Remove if not needed)
     public void init(FMLInitializationEvent event) {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new SelectionRenderHandler());
+        MinecraftForge.EVENT_BUS.register(new com.tkp.krolcad.client.MarkToolEventHandler());
     }
 
     // postInit "Handle interaction with other mods, complete your setup based on this." (Remove if not needed)

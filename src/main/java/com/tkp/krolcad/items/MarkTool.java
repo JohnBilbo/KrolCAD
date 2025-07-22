@@ -17,58 +17,39 @@ import java.util.Map;
 import java.util.UUID;
 
 public class MarkTool extends Item {
+    private static final String pointA = "PointA";
+    private static final String pointB = "PointB";
+
+    // Хранилище координат выделения для каждого игрока по UUID
+    public static final Map<UUID, Map<String, int[]>> toolCoords = new HashMap<>();
+
     public MarkTool() {
         this.setUnlocalizedName("markTool");
         this.setCreativeTab(CreativeTabs.tabMisc);
         this.setTextureName("krolcad:mark_tool");
         this.setMaxStackSize(1);
     }
-    private static final String pointA = "PointA";
-    private static final String pointB = "PointB";
-
-    public static final Map<UUID, Map<String,int[]>> toolCoords = new HashMap<>();
 
     @Override
     public boolean onBlockStartBreak(ItemStack stack, int x, int y, int z, EntityPlayer player) {
-        return handleLeftClick(x, y, z, player, pointA);
+        return handleClick(x, y, z, player, pointA);
     }
+
     @Override
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world,
                              int x, int y, int z, int side, float hitX, float hitY, float hitZ) {
-        return handleRightClick(player, world, x, y, z, pointB);
+        return handleClick(x, y, z, player, pointB);
     }
 
-
-    private boolean handleLeftClick(int x, int y, int z, EntityPlayer player, String point) {
+    private boolean handleClick(int x, int y, int z, EntityPlayer player, String point) {
         if (!player.worldObj.isRemote) {
             UUID uuid = player.getUniqueID();
-            if (!toolCoords.containsKey(uuid)) {
-                toolCoords.put(uuid, new HashMap<>());
-            }
-            toolCoords.get(uuid).put(point, new int[]{x, y, z});
+            toolCoords.computeIfAbsent(uuid, k -> new HashMap<>())
+                .put(point, new int[]{x, y, z});
 
             String msg = String.format("%s set: [%d, %d, %d]", point, x, y, z);
             KrolCAD.LOG.info(msg);
             player.addChatMessage(new ChatComponentText(msg));
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean handleRightClick(EntityPlayer player, World world, int x, int y, int z, String point) {
-        if (!world.isRemote) {
-            UUID uuid = player.getUniqueID();
-            if (!toolCoords.containsKey(uuid)) {
-                toolCoords.put(uuid, new HashMap<>());
-            }
-            toolCoords.get(uuid).put(point, new int[]{x, y, z});
-
-            String msg = String.format("%s set: [%d, %d, %d]", point, x, y, z);
-            KrolCAD.LOG.info(msg);
-            player.addChatMessage(new ChatComponentText(msg));
-
             return true;
         }
         return false;
@@ -95,15 +76,15 @@ public class MarkTool extends Item {
     }
 
     public static void renderSelectionGrid(UUID uuid, float partialTicks) {
-        if (!MarkTool.toolCoords.containsKey(uuid)) return;
-        Map<String, int[]> points = MarkTool.toolCoords.get(uuid);
+        if (!toolCoords.containsKey(uuid)) return;
+        Map<String, int[]> points = toolCoords.get(uuid);
         if (!points.containsKey(pointA) || !points.containsKey(pointB)) return;
 
         Minecraft mc = Minecraft.getMinecraft();
         EntityPlayer player = mc.thePlayer;
 
-        int[] min = MarkTool.getMinXYZ(uuid);
-        int[] max = MarkTool.getMaxXYZ(uuid);
+        int[] min = getMinXYZ(uuid);
+        int[] max = getMaxXYZ(uuid);
 
         double px = player.lastTickPosX + (player.posX - player.lastTickPosX) * partialTicks;
         double py = player.lastTickPosY + (player.posY - player.lastTickPosY) * partialTicks;
@@ -115,21 +96,26 @@ public class MarkTool extends Item {
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glLineWidth(1.5F);
-        GL11.glColor4f(0f, 1f, 1f, 0.4f); // голубой цвет
+
+        AxisAlignedBB box = AxisAlignedBB.getBoundingBox(
+            min[0], min[1], min[2],
+            max[0] + 1, max[1] + 1, max[2] + 1
+        ).offset(-px, -py, -pz);
 
         Tessellator tess = Tessellator.instance;
+
+        // Заливка граней
+        GL11.glColor4f(0f, 1f, 1f, 0.15f);
+        GL11.glDepthMask(false);
+        tess.startDrawingQuads();
+        drawFilledBox(tess, box);
+        tess.draw();
+        GL11.glDepthMask(true);
+
+        // Обводка
+        GL11.glColor4f(0f, 1f, 1f, 0.4f);
         tess.startDrawing(GL11.GL_LINES);
-
-        for (int x = min[0]; x <= max[0]; x++) {
-            for (int y = min[1]; y <= max[1]; y++) {
-                for (int z = min[2]; z <= max[2]; z++) {
-                    AxisAlignedBB box = AxisAlignedBB.getBoundingBox(x, y, z, x + 1, y + 1, z + 1)
-                        .offset(-px, -py, -pz);
-                    drawOutlinedBox(tess, box);
-                }
-            }
-        }
-
+        drawOutlinedBox(tess, box);
         tess.draw();
 
         GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -141,6 +127,7 @@ public class MarkTool extends Item {
         double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
         double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
 
+        // нижняя и верхняя грани + вертикали
         t.addVertex(x1, y1, z1); t.addVertex(x2, y1, z1);
         t.addVertex(x2, y1, z1); t.addVertex(x2, y1, z2);
         t.addVertex(x2, y1, z2); t.addVertex(x1, y1, z2);
@@ -157,4 +144,38 @@ public class MarkTool extends Item {
         t.addVertex(x1, y1, z2); t.addVertex(x1, y2, z2);
     }
 
+    private static void drawFilledBox(Tessellator t, AxisAlignedBB box) {
+        double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
+        double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
+
+        t.addVertex(x1, y2, z1); t.addVertex(x2, y2, z1);
+        t.addVertex(x2, y2, z2); t.addVertex(x1, y2, z2);
+
+        t.addVertex(x1, y1, z1); t.addVertex(x2, y1, z1);
+        t.addVertex(x2, y1, z2); t.addVertex(x1, y1, z2);
+
+        t.addVertex(x1, y1, z1); t.addVertex(x2, y1, z1);
+        t.addVertex(x2, y2, z1); t.addVertex(x1, y2, z1);
+
+        t.addVertex(x1, y1, z2); t.addVertex(x2, y1, z2);
+        t.addVertex(x2, y2, z2); t.addVertex(x1, y2, z2);
+
+        t.addVertex(x1, y1, z1); t.addVertex(x1, y1, z2);
+        t.addVertex(x1, y2, z2); t.addVertex(x1, y2, z1);
+
+        t.addVertex(x2, y1, z1); t.addVertex(x2, y1, z2);
+        t.addVertex(x2, y2, z2); t.addVertex(x2, y2, z1);
+    }
+
+    // вручню сохраняем коорлинату, даже если евент поломки блока отменится
+    public static void handleClickFromEvent(EntityPlayer player, int x, int y, int z) {
+        UUID uuid = player.getUniqueID();
+        if (!toolCoords.containsKey(uuid)) {
+            toolCoords.put(uuid, new HashMap<>());
+        }
+        toolCoords.get(uuid).put("PointA", new int[]{x, y, z});
+
+        String msg = String.format("PointA set: [%d, %d, %d]", x, y, z);
+        player.addChatMessage(new ChatComponentText(msg));
+    }
 }
