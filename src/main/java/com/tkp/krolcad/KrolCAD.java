@@ -10,6 +10,7 @@ import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 
+
 @Mod(modid = KrolCAD.MODID, version = Tags.VERSION, name = "KrolCAD", acceptedMinecraftVersions = "[1.7.10]")
 public class KrolCAD {
 
@@ -30,6 +31,7 @@ public class KrolCAD {
     // load "Do your mod setup. Build whatever data structures you care about. Register recipes." (Remove if not needed)
     public void init(FMLInitializationEvent event) {
         proxy.init(event);
+
     }
 
     @Mod.EventHandler
